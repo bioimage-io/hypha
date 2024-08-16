@@ -232,7 +232,6 @@ class RedisStore:
         except RuntimeError:
             logger.warning("Root workspace already exists.")
 
-        need_cleanup = True
         try:
             await self.register_workspace(
                 WorkspaceInfo.model_validate(
@@ -246,14 +245,11 @@ class RedisStore:
                 ),
                 overwrite=False,
             )
-            need_cleanup = False
         except RuntimeError:
             logger.warning("Public workspace already exists.")
         await self._register_root_services()
         api = await self.get_public_api()
-        if need_cleanup:
-            logger.info("Cleaning up the public workspace...")
-            await api.cleanup()
+        await api.cleanup()
         logger.info("Registering public services...")
         for service_type in self._public_types:
             try:

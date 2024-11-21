@@ -41,8 +41,10 @@ collection = await artifact_manager.create(
     manifest=gallery_manifest,
     config={"permissions": {"*": "r", "@": "r+"}}
 )
-print("Dataset Gallery created.")
+print("Dataset Gallery created with ID:", collection.id)
 ```
+
+**Tips: The returned `collection.id` is the unique identifier for the collection with the format `workspace_id/alias`. You can use this ID to refer to the collection in subsequent operations. You can also use only `alias` as a shortcut, however, this only works in the same workspace.**
 
 ### Step 3: Adding a Dataset to the Gallery
 
@@ -64,6 +66,8 @@ dataset = await artifact_manager.create(
 )
 print("Dataset added to the gallery.")
 ```
+
+**Tips: The `version="stage"` parameter stages the dataset for review and commit. You can edit the dataset before committing it to the collection.**
 
 ### Step 4: Uploading Files to the Dataset with Download Statistics
 
@@ -231,27 +235,29 @@ print("Valid dataset committed.")
 
 ## API References
 
-### `create(parent_id: str, alias: str, type: str, manifest: dict, permissions: dict=None, config: dict=None, version: str = None, comment: str = None, publish_to: str = None) -> None`
+### `create(parent_id: str, alias: str, type: str, manifest: dict, permissions: dict=None, config: dict=None, version: str = None, comment: str = None, overwrite: bool = False, publish_to: str = None) -> None`
 
 Creates a new artifact or collection with the specified manifest. The artifact is staged until committed. For collections, the `collection` field should be an empty list.
 
 **Parameters:**
 
-- `parent_id`: The id of the parent collection where the artifact will be created. If the artifact is a top-level collection, leave this field empty or set to None.
-- `alias`: A human readable name for indexing the artifact, it can be a text with lower case letters and numbers. You can set it to absolute alias in the format of `"workspace_id/alias"` or just `"alias"`. In the alias itself, `/` is not allowed, you should use `:` instead in the alias.
-To generate an auto-id, you can use patterns like `"{uuid}"` or `"{timestamp}"`. The following patterns are supported:
+- `alias`: A human readable name for indexing the artifact, it can be a text with lower case letters and numbers. You can set it to absolute alias in the format of `"workspace_id/alias"` or just `"alias"`. In the alias itself, `/` is not allowed, you should use `:` instead in the alias. If the alias already exists in the workspace, it will raise an error and you need to either delete the existing artifact or use a different alias.
+  To generate an auto-id, you can use patterns like `"{uuid}"` or `"{timestamp}"`. The following patterns are supported:
   - `{uuid}`: Generates a random UUID.
   - `{timestamp}`: Generates a timestamp in milliseconds.
   - `{user_id}`: Generate the user id of the creator.
   - `{zenodo_id}`: If `publish_to` is set to `zenodo` or `sandbox_zenodo`, it will use the Zenodo deposit ID (which changes when a new version is created).
   - `{zenodo_conceptrecid}`: If `publish_to` is set to `zenodo` or `sandbox_zenodo`, it will use the Zenodo concept id (which does not change when a new version is created).
   - **Id Parts**: You can also use id parts stored in the parent collection's config['id_parts'] to generate an id. For example, if the parent collection has `{"animals": ["dog", "cat", ...], "colors": ["red", "blue", ...]}`, you can use `"{colors}-{animals}"` to generate an id like `red-dog`.
+- `workspace`: Optional. The workspace id where the artifact will be created. If not set, it will be created in the default workspace. If specified, it should match the workspace in the alias and also the parent_id.
+- `parent_id`: The id of the parent collection where the artifact will be created. If the artifact is a top-level collection, leave this field empty or set to None.
 - `type`: The type of the artifact. Supported values are `collection`, `generic` and any other custom type. By default, it's set to `generic` which contains fields tailored for displaying the artifact as cards on a webpage.
 - `manifest`: The manifest of the new artifact. Ensure the manifest follows the required schema if applicable (e.g., for collections).
 - `config`: Optional. A dictionary containing additional configuration options for the artifact (shared for both staged and committed). For collections, the config can contain the following special fields:
   - `collection_schema`: Optional. A JSON schema that defines the structure of child artifacts in the collection. This schema is used to validate child artifacts when they are created or edited. If a child artifact does not conform to the schema, the creation or edit operation will fail.
   - `id_parts`: Optional. A dictionary of id name parts to be used in generating the id for child artifacts. For example: `{"animals": ["dog", "cat", ...], "colors": ["red", "blue", ...]}`. This can be used for creating child artifacts with auto-generated ids based on the id parts. For example, when calling `create`, you can specify the alias as `my-pet-{colors}-{animals}`, and the id will be generated based on the id parts, e.g., `my-pet-red-dog`.
-- `permissions`: Optional. A dictionary containing user permissions. For example `{"*": "r+"}` gives read and create access to everyone, `{"@": "rw+"}` allows all authenticated users to read/write/create, and `{"user_id_1": "r+"}` grants read and create permissions to a specific user. You can also set permissions for specific operations, such as `{"user_id_1": ["read", "create"]}`. See detailed explanation about permissions below.
+  - `permissions`: Optional. A dictionary containing user permissions. For example `{"*": "r+"}` gives read and create access to everyone, `{"@": "rw+"}` allows all authenticated users to read/write/create, and `{"user_id_1": "r+"}` grants read and create permissions to a specific user. You can also set permissions for specific operations, such as `{"user_id_1": ["read", "create"]}`. See detailed explanation about permissions below.
+  - `list_fields`: Optional. A list of fields to be collected when calling ``list`` function. By default, it collects all fields in the artifacts. If you want to collect only specific fields, you can set this field to a list of field names, e.g. `["manifest", "download_count"]`.
 - `version`: Optional. The version of the artifact to create. By default, it set to None or `"new"`, it will generate a version `v0`. If you want to create a staged version, you can set it to `"stage"`.
 - `comment`: Optional. A comment to describe the changes made to the artifact.
 - `secrets`: Optional. A dictionary containing secrets to be stored with the artifact. Secrets are encrypted and can only be accessed by the artifact owner or users with appropriate permissions. The following keys can be used:
@@ -263,7 +269,8 @@ To generate an auto-id, you can use patterns like `"{uuid}"` or `"{timestamp}"`.
   - `S3_REGION_NAME`: The region name of the S3 storage for the artifact.
   - `S3_BUCKET`: The bucket name of the S3 storage for the artifact. Default to the hypha workspaces bucket.
   - `S3_PREFIX`: The prefix of the S3 storage for the artifact. Default: `""`.
-
+  - `S3_PUBLIC_ENDPOINT_URL`: The public endpoint URL of the S3 storage for the artifact. If the S3 server is not public, you can set this to the public endpoint URL. Default: `None`.
+- `overwrite`: Optional. A boolean flag to overwrite the existing artifact with the same alias. Default is `False`.
 - `publish_to`: Optional. A string specifying the target platform to publish the artifact. Supported values are `zenodo` and `sandbox_zenodo`. If set, the artifact will be published to the specified platform. The artifact must have a valid Zenodo metadata schema to be published.
 
 **Note 1: If you set `version="stage"`, you must call `commit()` to finalize the artifact.**
@@ -283,14 +290,20 @@ Permissions can be set both at the artifact level and the workspace level. In th
 
 **Permission Levels:**
 
+The following permission levels are supported:
+
 - **n**: No access to the artifact.
 - **l**: List-only access (includes `list`).
-- **l+**: List and create access (includes `list`, `create`, `commit`).
-- **r**: Read-only access (includes `read`, `get_file`, `list_files`, `list`).
-- **r+**: Read and create access (includes `read`, `get_file`, `list_files`, `list`, `put_file`, `create`, `commit`).
-- **rw**: Read and write access (includes `read`, `get_file`, `list_files`, `list`, `edit`, `commit`, `put_file`, `remove_file`).
-- **rw+**: Full access, including creation, editing, committing, and file removal (includes `read`, `get_file`, `list_files`, `list`, `edit`, `commit`, `put_file`, `remove_file`, `create`, `reset_stats`).
-- **\***: Full access for all operations (includes all operations listed above).
+- **l+**: List and create access (includes `list`, `create`, and `commit`).
+- **lv**: List and list vectors access (includes `list` and `list_vectors`).
+- **lv+**: List, list vectors, create, and commit access (includes `list`, `list_vectors`, `create`, `commit`, `add_vectors`, and `add_documents`).
+- **lf**: List and list files access (includes `list` and `list_files`).
+- **lf+**: List, list files, create, and commit access (includes `list`, `list_files`, `create`, `commit`, and `put_file`).
+- **r**: Read-only access (includes `read`, `get_file`, `list_files`, `list`, `search_by_vector`, `search_by_text`, and `get_vector`).
+- **r+**: Read, write, and create access (includes `read`, `get_file`, `put_file`, `list_files`, `list`, `search_by_vector`, `search_by_text`, `get_vector`, `create`, `commit`, `add_vectors`, and `add_documents`).
+- **rw**: Read, write, and create access with file management (includes `read`, `get_file`, `get_vector`, `search_by_vector`, `search_by_text`, `list_files`, `list_vectors`, `list`, `edit`, `commit`, `put_file`, `add_vectors`, `add_documents`, `remove_file`, and `remove_vectors`).
+- **rw+**: Read, write, create, and manage access (includes `read`, `get_file`, `get_vector`, `search_by_vector`, `search_by_text`, `list_files`, `list_vectors`, `list`, `edit`, `commit`, `put_file`, `add_vectors`, `add_documents`, `remove_file`, `remove_vectors`, and `create`).
+- **\***: Full access to all operations (includes `read`, `get_file`, `get_vector`, `search_by_vector`, `search_by_text`, `list_files`, `list_vectors`, `list`, `edit`, `commit`, `put_file`, `add_vectors`, `add_documents`, `remove_file`, `remove_vectors`, `create`, and `reset_stats`).
 
 **Shortcut Permission Notation:**
 
@@ -358,7 +371,7 @@ Edits an existing artifact's manifest. The new manifest is staged until committe
 
 **Parameters:**
 
-- `prefix`: The path of the artifact, it can be a prefix relative to the current workspace (e.g., `"collections/dataset-gallery/example-dataset"`) or an absolute prefix with the workspace id (e.g., `"/my_workspace_id/collections/dataset-gallery/example-dataset"`).
+- `artifact_id`: The id of the artifact to edit. It can be an uuid generated by `create` or `edit` function, or it can be an alias of the artifact under the current workspace. If you want to refer to an artifact in another workspace, you should use the full alias in the format of `"workspace_id/alias"`.
 - `manifest`: The updated manifest. Ensure the manifest follows the required schema if applicable (e.g., for collections).
 - `type`: Optional. The type of the artifact. Supported values are `collection`, `generic` and any other custom type. By default, it's set to `generic` which contains fields tailored for displaying the artifact as cards on a webpage.
 - `permissions`: Optional. A dictionary containing user permissions. For example `{"*": "r+"}` gives read and create access to everyone, `{"@": "rw+"}` allows all authenticated users to read/write/create, and `{"user_id_1": "r+"}` grants read and create permissions to a specific user. You can also set permissions for specific operations, such as `{"user_id_1": ["read", "create"]}`. See detailed explanation about permissions below.
@@ -557,13 +570,13 @@ manifest = await artifact_manager.read(artifact_id="other_workspace/example-data
 
 ---
 
-### `list(artifact_id: str, keywords: List[str] = None, filters: dict = None, mode: str = "AND", page: int = 0, page_size: int = 100, order_by: str = None, silent: bool = False) -> list`
+### `list(artifact_id: str=None, keywords: List[str] = None, filters: dict = None, mode: str = "AND", offset: int = 0, limit: int = 100, order_by: str = None, silent: bool = False) -> list`
 
 Retrieve a list of child artifacts within a specified collection, supporting keyword-based fuzzy search, field-specific filters, and flexible ordering. This function allows detailed control over the search and pagination of artifacts in a collection, including staged artifacts if specified.
 
 **Parameters:**
 
-- `artifact_id` (str): The id of the parent artifact or collection to list children from. It can be an uuid generated by `create` or `edit` function, or it can be an alias of the artifact under the current workspace. If you want to refer to an artifact in another workspace, you should use the full alias in the format of `"workspace_id/alias"`.
+- `artifact_id` (str): The id of the parent artifact or collection to list children from. It can be an uuid generated by `create` or `edit` function, or it can be an alias of the artifact under the current workspace. If you want to refer to an artifact in another workspace, you should use the full alias in the format of `"workspace_id/alias"`. If not specified, the function lists all top-level artifacts in the current workspace.
 - `keywords` (List[str], optional): A list of search terms used for fuzzy searching across all manifest fields. Each term is searched independently, and results matching any term will be included. For example, `["sample", "dataset"]` returns artifacts containing either "sample" or "dataset" in any field of the manifest.
 
 - `filters` (dict, optional): A dictionary where each key is a manifest field name and each value specifies the match for that field. Filters support both exact and range-based matching, depending on the field. You can filter based on the keys inside the manifest, as well as internal fields like permissions and view/download statistics by adding a dot (`.`) before the field name. Supported internal fields include:
@@ -577,14 +590,14 @@ Retrieve a list of child artifacts within a specified collection, supporting key
 
 - `mode` (str, optional): Defines how multiple conditions (from keywords and filters) are combined. Use `"AND"` to ensure all conditions must match, or `"OR"` to include artifacts meeting any condition. Default is `"AND"`.
 
-- `page` (int, optional): The page number for pagination. Used in conjunction with `page_size` to limit results. Default is `0`, which returns the first page of results.
+- `offset` (int, optional): The number of artifacts to skip before listing results. Default is `0`.
 
-- `page_size` (int, optional): The maximum number of artifacts to return per page. This is capped at 1000 for performance considerations. Default is `100`.
+- `limit` (int, optional): The maximum number of artifacts to return. Default is `100`.
 
 - `order_by` (str, optional): The field used to order results. Options include:
-  - `view_count`, `download_count`, `last_modified`, `created_at`, and `prefix`.
+  - `view_count`, `download_count`, `last_modified`, `created_at`, and `id`.
   - Use a suffix `<` or `>` to specify ascending or descending order, respectively (e.g., `view_count<` for ascending).
-  - Default ordering is ascending by prefix if not specified.
+  - Default ordering is ascending by id if not specified.
 
 - `silent` (bool, optional): If `True`, prevents incrementing the view count for the parent artifact when listing children. Default is `False`.
 
@@ -602,8 +615,8 @@ results = await artifact_manager.list(
     filters={"created_by": "user123", "stage": False},
     order_by="view_count>",
     mode="AND",
-    page=1,
-    page_size=50
+    offset=0,
+    limit=50
 )
 ```
 
@@ -700,10 +713,10 @@ The `Artifact Manager` provides an HTTP endpoint for retrieving artifact manifes
 
 ### Endpoints:
 
- - `/{workspace}/artifacts/{artifact_id}` for fetching the artifact manifest.
- - `/{workspace}/artifacts/{artifact_id}/children` for listing all artifacts in a collection.
- - `/{workspace}/artifacts/{artifact_id}/files` for listing all files in the artifact.
- - `/{workspace}/artifacts/{artifact_id}/files/{file_path:path}` for downloading a file from the artifact (will be redirected to a pre-signed URL).
+ - `/{workspace}/artifacts/{artifact_alias}` for fetching the artifact manifest.
+ - `/{workspace}/artifacts/{artifact_alias}/children` for listing all artifacts in a collection.
+ - `/{workspace}/artifacts/{artifact_alias}/files` for listing all files in the artifact.
+ - `/{workspace}/artifacts/{artifact_alias}/files/{file_path:path}` for downloading a file from the artifact (will be redirected to a pre-signed URL).
 
 
 ### Request Format:
@@ -717,7 +730,7 @@ The `Artifact Manager` provides an HTTP endpoint for retrieving artifact manifes
 The path parameters are used to specify the artifact or file to access. The following parameters are supported:
 
 - **workspace**: The workspace in which the artifact is stored.
-- **artifact_id**: The id of the artifact to access. This can be an uuid generated by `create` or `edit` function, or it can be an alias of the artifact under the current workspace. Note that this artifact_id can only be the uuid or the alias without the workspace id.
+- **artifact_alias**: The alias or id of the artifact to access. This can be an artifact id generated by `create` or `edit` function, or it can be an alias of the artifact under the current workspace. Note that this artifact_alias should not contain the workspace.
 - **file_path**: Optional, the relative path to a file within the artifact. This is optional and only required when downloading a file.
 
 ### Query Parameters:
@@ -730,20 +743,20 @@ Qury parameters are passed after the `?` in the URL and are used to control the 
 - **keywords**: A list of search terms used for fuzzy searching across all manifest fields, separated by commas.
 - **filters**: A dictionary of filters to apply to the search, in the format of a JSON string.
 - **mode**: The mode for combining multiple conditions. Default is `AND`.
-- **page**: The page number for pagination. Default is `0`.
-- **page_size**: The maximum number of artifacts to return per page. Default is `100`.
-- **order_by**: The field used to order results. Default is ascending by prefix.
+- **offset**: The number of artifacts to skip before listing results. Default is `0`.
+- **limit**: The maximum number of artifacts to return. Default is `100`.
+- **order_by**: The field used to order results. Default is ascending by id.
 - **silent**: A boolean flag to prevent incrementing the view count for the parent artifact when listing children, listing files, or reading the artifact. Default is `False`.
 
 ### Response:
 
-For `/{workspace}/artifacts/{artifact_id}`, the response will be a JSON object representing the artifact manifest. For `/{workspace}/artifacts/{artifact_id}/__files__/{file_path:path}`, the response will be a pre-signed URL to download the file. The artifact manifest will also include any metadata such as download statistics, e.g. `view_count`, `download_count`. For private artifacts, make sure if the user has the necessary permissions.
+For `/{workspace}/artifacts/{artifact_alias}`, the response will be a JSON object representing the artifact manifest. For `/{workspace}/artifacts/{artifact_alias}/__files__/{file_path:path}`, the response will be a pre-signed URL to download the file. The artifact manifest will also include any metadata such as download statistics, e.g. `view_count`, `download_count`. For private artifacts, make sure if the user has the necessary permissions.
 
-For `/{workspace}/artifacts/{artifact_id}/children`, the response will be a list of artifacts in the collection.
+For `/{workspace}/artifacts/{artifact_alias}/children`, the response will be a list of artifacts in the collection.
 
-For `/{workspace}/artifacts/{artifact_id}/files`, the response will be a list of files in the artifact, each file is a dictionary with the `name` and `type` fields.
+For `/{workspace}/artifacts/{artifact_alias}/files`, the response will be a list of files in the artifact, each file is a dictionary with the `name` and `type` fields.
 
-For `/{workspace}/artifacts/{artifact_id}/files/{file_path:path}`, the response will be a pre-signed URL to download the file.
+For `/{workspace}/artifacts/{artifact_alias}/files/{file_path:path}`, the response will be a pre-signed URL to download the file.
 
 ### Example: Fetching a public artifact with download statistics
 

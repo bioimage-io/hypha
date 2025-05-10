@@ -1,4 +1,3 @@
-
 # Artifact Manager
 
 The `Artifact Manager` is an essential Hypha service for managing resources such as datasets, AI models, and applications. It allows for structured resource management, providing APIs to create collections, manage datasets, track download statistics, enforce schemas, and control access permissions. The `Artifact Manager` can be used as a backend for web applications, supporting complex operations like indexing, searching, and schema validation.
@@ -62,12 +61,12 @@ dataset = await artifact_manager.create(
     parent_id=collection.id,
     alias="example-dataset",
     manifest=dataset_manifest,
-    version="stage"
+    stage=True
 )
 print("Dataset added to the gallery.")
 ```
 
-**Tips: The `version="stage"` parameter stages the dataset for review and commit. You can edit the dataset before committing it to the collection.**
+**Tips: The `stage=True` parameter stages the dataset for review and commit. You can edit the dataset before committing it to the collection.**
 
 ### Step 4: Uploading Files to the Dataset with Download Statistics
 
@@ -111,7 +110,7 @@ print("Datasets in the gallery:", datasets)
 
 ## Full Example: Creating and Managing a Dataset Gallery
 
-Here’s a complete example showing how to connect to the service, create a dataset gallery, add a dataset, upload files, and commit the dataset.
+Here's a complete example showing how to connect to the service, create a dataset gallery, add a dataset, upload files, and commit the dataset.
 
 ```python
 import asyncio
@@ -147,7 +146,7 @@ async def main():
         parent_id=collection.id,
         alias="example-dataset",
         manifest=dataset_manifest,
-        version="stage"
+        stage=True
     )
     print("Dataset added to the gallery.")
 
@@ -221,7 +220,7 @@ dataset = await artifact_manager.create(
     parent_id=collection.id,
     alias="valid-dataset",
     manifest=valid_dataset_manifest,
-    version="stage"
+    stage=True
 )
 print("Valid dataset created.")
 
@@ -235,7 +234,7 @@ print("Valid dataset committed.")
 
 ## API References
 
-### `create(parent_id: str, alias: str, type: str, manifest: dict, permissions: dict=None, config: dict=None, version: str = None, comment: str = None, overwrite: bool = False) -> None`
+### `create(parent_id: str, alias: str, type: str, manifest: dict, permissions: dict=None, config: dict=None, version: str = None, stage: bool = False, comment: str = None, overwrite: bool = False) -> None`
 
 Creates a new artifact or collection with the specified manifest. The artifact is staged until committed. For collections, the `collection` field should be an empty list.
 
@@ -259,7 +258,8 @@ Creates a new artifact or collection with the specified manifest. The artifact i
   - `permissions`: Optional. A dictionary containing user permissions. For example `{"*": "r+"}` gives read and create access to everyone, `{"@": "rw+"}` allows all authenticated users to read/write/create, and `{"user_id_1": "r+"}` grants read and create permissions to a specific user. You can also set permissions for specific operations, such as `{"user_id_1": ["read", "create"]}`. See detailed explanation about permissions below.
   - `list_fields`: Optional. A list of fields to be collected when calling ``list`` function. By default, it collects all fields in the artifacts. If you want to collect only specific fields, you can set this field to a list of field names, e.g. `["manifest", "download_count"]`.
   - `publish_to`: Optional. A string specifying the target platform to publish the artifact. Supported values are `zenodo` and `sandbox_zenodo`. If set, the artifact will be published to the specified platform. The artifact must have a valid Zenodo metadata schema to be published.
-- `version`: Optional. The version of the artifact to create. By default, it set to None or `"new"`, it will generate a version `v0`. If you want to create a staged version, you can set it to `"stage"`.
+- `version`: Optional. The version of the artifact to create. By default, it set to None or `"new"`, it will generate a version `v0`. If you want to create a staged version, you can set it to `"stage"` (equivalent to `stage=True`). Note that if `stage=True` is specified, any version parameter is ignored.
+- `stage`: Optional. If `True`, the artifact will be created in staging mode regardless of the version parameter. Default is `False`.
 - `comment`: Optional. A comment to describe the changes made to the artifact.
 - `secrets`: Optional. A dictionary containing secrets to be stored with the artifact. Secrets are encrypted and can only be accessed by the artifact owner or users with appropriate permissions. The following keys can be used:
   - `ZENODO_ACCESS_TOKEN`: The Zenodo access token to publish the artifact to Zenodo.
@@ -274,13 +274,13 @@ Creates a new artifact or collection with the specified manifest. The artifact i
 - `overwrite`: Optional. A boolean flag to overwrite the existing artifact with the same alias. Default is `False`.
 
 
-**Note 1: If you set `version="stage"`, you must call `commit()` to finalize the artifact.**
+**Note 1: If you set `stage=True`, you must call `commit()` to finalize the artifact.**
 
 **Example:**
 
 ```python
 # Assuming we have already created a dataset-gallery collection, we can add a new dataset to it
-await artifact_manager.create(artifact_id="dataset-gallery", alias="example-dataset", manifest=dataset_manifest, version="stage")
+await artifact_manager.create(artifact_id="dataset-gallery", alias="example-dataset", manifest=dataset_manifest, stage=True)
 ```
 
 ### Permissions
@@ -366,9 +366,9 @@ The following list shows how permission expansions work:
 
 ---
 
-### `edit(artifact_id: str, manifest: dict = None, type: str = None,  permissions: dict = None, config: dict = None, secrets: dict = None, version: str = None, comment: str = None) -> None`
+### `edit(artifact_id: str, manifest: dict = None, type: str = None,  permissions: dict = None, config: dict = None, secrets: dict = None, version: str = None, stage: bool = False, comment: str = None) -> None`
 
-Edits an existing artifact's manifest. The new manifest is staged until committed.
+Edits an existing artifact's manifest. The new manifest is staged until committed if staging mode is enabled.
 
 **Parameters:**
 
@@ -378,13 +378,20 @@ Edits an existing artifact's manifest. The new manifest is staged until committe
 - `permissions`: Optional. A dictionary containing user permissions. For example `{"*": "r+"}` gives read and create access to everyone, `{"@": "rw+"}` allows all authenticated users to read/write/create, and `{"user_id_1": "r+"}` grants read and create permissions to a specific user. You can also set permissions for specific operations, such as `{"user_id_1": ["read", "create"]}`. See detailed explanation about permissions below.
 - `secrets`: Optional. A dictionary containing secrets to be stored with the artifact. Secrets are encrypted and can only be accessed by the artifact owner or users with appropriate permissions. See the `create` function for a list of supported secrets.
 - `config`: Optional. A dictionary containing additional configuration options for the artifact.
-- `version`: Optional. The version of the artifact to edit. By default, it set to None, the version will stay the same. If you want to create a staged version, you can set it to `"stage"`. You can set it to any version in text, e.g. `0.1.0` or `v1`. If you set it to `new`, it will generate a version similar to `v0`, `v1`, etc.
+- `version`: Optional. The version of the artifact to edit. By default, it set to None, the version will stay the same. If you want to create a staged version, you can set it to `"stage"` (equivalent to `stage=True`). Note that if `stage=True` is specified, any version parameter is ignored.
+- `stage`: Optional. If `True`, the artifact will be edited in staging mode regardless of the version parameter. Default is `False`. When in staging mode, committing will create a new version.
 - `comment`: Optional. A comment to describe the changes made to the artifact.
 
 **Example:**
 
 ```python
-await artifact_manager.edit(artifact_id="example-dataset", manifest=updated_manifest)
+# Edit an artifact and create a new version with files copied from the previous version
+await artifact_manager.edit(
+    artifact_id="example-dataset",
+    manifest=updated_manifest,
+    stage=True,
+)
+
 ```
 
 ---
@@ -396,19 +403,17 @@ Finalizes and commits an artifact's staged changes. Validates uploaded files and
 **Parameters:**
 
 - `artifact_id`: The id of the artifact to commit. It can be an uuid generated by `create` or `edit` function, or it can be an alias of the artifact under the current workspace. If you want to refer to an artifact in another workspace, you should use the full alias in the format of `"workspace_id/alias"`.
-- `version`: Optional. The version of the artifact to edit. By default, it set to None, the version will stay the same. If you want to create a staged version, you can set it to `"stage"`. You can set it to any version in text, e.g. `0.1.0` or `v1`. If you set it to `new`, it will generate a version similar to `v0`, `v1`, etc.
+- `version`: Optional. The version number to use for the committed artifact. Note that this only affects the version number - whether a new version is created or the current version is updated depends on whether the artifact was in staging mode. If committing from staging mode, a new version is always created. If committing a direct edit, the current version is updated.
 - `comment`: Optional. A comment to describe the changes made to the artifact.
 
 **Example:**
 
 ```python
+# Commit a staged artifact (will create a new version)
+await artifact_manager.commit(artifact_id=artifact.id, version="v1")
+
+# Commit a direct edit (will update current version)
 await artifact_manager.commit(artifact_id=artifact.id)
-
-# If "example-dataset" is an alias of the artifact under the current workspace
-await artifact_manager.commit(artifact_id="example-dataset")
-
-# If "example-dataset" is an alias of the artifact under another workspace
-await artifact_manager.commit(artifact_id="other_workspace/example-dataset")
 ```
 
 ---
@@ -684,7 +689,7 @@ manifest = await artifact_manager.read(artifact_id="other_workspace/example-data
 
 ---
 
-### `list(artifact_id: str=None, keywords: List[str] = None, filters: dict = None, mode: str = "AND", offset: int = 0, limit: int = 100, order_by: str = None, silent: bool = False) -> list`
+### `list(artifact_id: str=None, keywords: List[str] = None, filters: dict = None, mode: str = "AND", offset: int = 0, limit: int = 100, order_by: str = None, silent: bool = False, stage: bool = False) -> list`
 
 Retrieve a list of child artifacts within a specified collection, supporting keyword-based fuzzy search, field-specific filters, and flexible ordering. This function allows detailed control over the search and pagination of artifacts in a collection, including staged artifacts if specified.
 
@@ -699,7 +704,7 @@ Retrieve a list of child artifacts within a specified collection, supporting key
   - **`created_at`** and **`last_modified`**: Accept a single timestamp (lower bound) or a range for filtering. For example, `{"created_at": [1620000000, 1630000000]}` filters artifacts created between the two timestamps.
   - **`view_count`** and **`download_count`**: Accept a single value or a range for filtering, as with date fields. For example, `{"view_count": [10, 100]}` filters artifacts viewed between 10 and 100 times.
   - **`permissions/<user_id>`**: Searches for artifacts with specific permissions assigned to the given `user_id`.
-  - **`version`**: Matches the exact version of the artifact, it only support `"stage"`, `"committed"` or `"*"` (both staged or committed).
+  - **`version`**: Matches the exact version of the artifact, it only support `"stage"`, `"committed"` or `"*"` (both staged or committed). If `stage` is specified, this filter should align with the `stage` parameter.
   - **`manifest`**: Matches the exact value of the field, e.g., `"manifest": {"name": "example-dataset"}`. These filters also support fuzzy matching if a value contains a wildcard (`*`), e.g., `"manifest": {"name": "dataset*"}`, depending on the SQL backend.
   - **`config`**: Matches the exact value of the field in the config, e.g., `"config": {"collection_schema": {"type": "object"}}`.
 - `mode` (str, optional): Defines how multiple conditions (from keywords and filters) are combined. Use `"AND"` to ensure all conditions must match, or `"OR"` to include artifacts meeting any condition. Default is `"AND"`.
@@ -714,6 +719,11 @@ Retrieve a list of child artifacts within a specified collection, supporting key
   - Default ordering is ascending by id if not specified.
 
 - `silent` (bool, optional): If `True`, prevents incrementing the view count for the parent artifact when listing children. Default is `False`.
+
+- `stage`: Controls which artifacts to return based on their staging status:
+  - `True`: Return only staged artifacts
+  - `False`: Return only committed artifacts (default)
+  - `'all'`: Return both staged and committed artifacts
 
 **Returns:**
 A list of artifacts that match the search criteria, each represented by a dictionary containing all the fields.
@@ -731,6 +741,15 @@ results = await artifact_manager.list(
     mode="AND",
     offset=0,
     limit=50
+)
+```
+
+**Example: Return both staged and committed artifacts:**
+```python
+# Retrieve all artifacts regardless of staging status
+all_artifacts = await artifact_manager.list(
+    artifact_id=collection.id,
+    stage='all'  # This returns both staged and committed artifacts
 )
 ```
 
@@ -804,7 +823,7 @@ dataset_manifest = {
     "description": "A dataset with example data",
     "type": "dataset",
 }
-dataset = await artifact_manager.create(parent_id=collection.id, alias="example-dataset" manifest=dataset_manifest, version="stage")
+dataset = await artifact_manager.create(parent_id=collection.id, alias="example-dataset" manifest=dataset_manifest, stage=True)
 
 # Step 4: Upload a file to the dataset
 put_url = await artifact_manager.put_file(dataset.id, file_path="data.csv")
@@ -831,6 +850,19 @@ The `Artifact Manager` provides an HTTP API for retrieving artifact manifests, d
 
 - `/{workspace}/artifacts/{artifact_alias}`: Fetch the artifact manifest.
 - `/{workspace}/artifacts/{artifact_alias}/children`: List all artifacts in a collection.
+  - **Query Parameters**:
+    - `keywords`: (Optional) Comma-separated search terms
+    - `filters`: (Optional) JSON-encoded filter conditions
+    - `offset`: (Optional) Number of results to skip
+    - `limit`: (Optional) Maximum number of results to return
+    - `order_by`: (Optional) Field to sort results by
+    - `mode`: (Optional) How to combine conditions ("AND" or "OR")
+    - `pagination`: (Optional) Whether to include pagination metadata
+    - `silent`: (Optional) Whether to suppress view count increment
+    - `stage`: (Optional) Filter by staging status:
+      - `true`: Return only staged artifacts
+      - `false`: Return only committed artifacts (default)
+      - `all`: Return both staged and committed artifacts
 - `/{workspace}/artifacts/{artifact_alias}/files`: List all files in the artifact.
 - `/{workspace}/artifacts/{artifact_alias}/files/{file_path:path}`: Download a file from the artifact (redirects to a pre-signed URL).
 
@@ -1043,4 +1075,67 @@ response = requests.get(
 with open("example2.txt", "wb") as f:
     for chunk in response.iter_content(chunk_size=8192):
         f.write(chunk)
+```
+
+### Version Handling Rules
+
+The Artifact Manager follows specific rules for version handling during `create`, `edit`, and `commit` operations:
+
+1. **Version Determination at Creation Time**
+   - When creating an artifact, the version handling must be determined at creation time
+   - If `stage=True` is specified, any version parameter is ignored and the artifact starts in staging mode
+   - Using `stage=True` is equivalent to `version="stage"`(not recommended) for backward compatibility
+   - When committing a staged artifact, it will create version "v0" regardless of any version specified during creation
+
+2. **Version Determination at Edit Time**
+   - When editing an artifact, the version handling must be determined at edit time
+   - If `stage=True` is specified, any version parameter is ignored and the artifact goes into staging mode
+   - Using `stage=True` is equivalent to `version="stage"`(not recommended) for backward compatibility
+   - Direct edits without staging will update the current version without creating a new one
+
+3. **Version Handling During Commit**
+   - The commit operation can only override the version number
+   - It cannot change whether we're editing the current version or creating a new one
+   - This decision is determined by whether the artifact was in staging mode:
+     - If committing from staging mode, it will create a new version
+     - If committing a direct edit, it will update the current version
+   - The version number can be overridden using the `version` parameter
+
+**Example: Version Handling in Practice**
+
+```python
+# Create an artifact in staging mode (both approaches are equivalent)
+artifact = await artifact_manager.create(
+    type="dataset",
+    manifest=manifest,
+    stage=True,  # This puts the artifact in staging mode
+    version="v5"  # This is ignored since stage=True is specified
+)
+
+# Alternative approach using stage=True
+artifact = await artifact_manager.create(
+    type="dataset",
+    manifest=manifest,
+    stage=True  # Equivalent to stage=True
+)
+
+# Edit an artifact in staging mode
+await artifact_manager.edit(
+    artifact_id=artifact.id,
+    manifest=updated_manifest,
+    stage=True,  # This puts the artifact in staging mode
+    version="v10"  # This is ignored since stage=True is specified
+)
+
+# Direct edit without staging (updates current version)
+await artifact_manager.edit(
+    artifact_id=artifact.id,
+    manifest={"name": "Updated Name"}
+)
+
+# Commit from staging mode (creates new version)
+committed = await artifact_manager.commit(
+    artifact_id=artifact.id,
+    version="v5"  # This only affects the version number
+)
 ```

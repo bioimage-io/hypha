@@ -1,4 +1,5 @@
  * [Getting Started](/getting-started)
+ * [Quick Guide](/quick-guide)
  * [Hypha RPC](/hypha-rpc)
  * [Migration Guide](/migration-guide)
  * [Service Type Annotation](/service-type-annotation)
@@ -6,6 +7,7 @@
  * [Serve ASGI Web Apps](/asgi-apps)
  * [Launch Service](/launch-service)
  * [Operate Files](/operate-files)
+ * [Zip Streaming](/zip-streaming)
  * [Artifact Manager](/artifact-manager)
  * [Vector Search](/vector-search)
  * [Development](/development)
